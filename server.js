@@ -4,23 +4,26 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
-// ВСТАВЬ СВОИ КЛЮЧИ
-const SERP_API_KEY = "6087667CEB3446B0888E718CA534A3E6";
-const GEMINI_KEY   = "AIzaSyBihmxHE3_FsIVNGSi5LWi3UOyGihwCgMs";
+// ТВОЙ КЛЮЧ ОТ VALUE SERP
+const VALUE_SERP_KEY = "6087667CEB3446B0888E718CA534A3E6";
 
-// 1. Реальный Google Search через SerpAPI
+// ТВОЙ КЛЮЧ ГЕМИНИ
+const GEMINI_KEY = "AIzaSyBihmxHE3_FsIVNGSi5LWi3UOyGihwCgMs";
+
+// 1. Реальный Google Search (Value SERP)
 async function realGoogleSearch(query) {
   const url =
-    `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(query)}&api_key=${SERP_API_KEY}`;
+    `https://api.valueserp.com/search?api_key=${VALUE_SERP_KEY}&q=${encodeURIComponent(query)}`;
 
   const r = await fetch(url);
   const json = await r.json();
   return json;
 }
 
-// 2. Вызов Gemini
+// 2. Gemini ответ
 async function callGemini(system, user) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${GEMINI_KEY}`;
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${GEMINI_KEY}`;
 
   const body = {
     systemInstruction: system,
@@ -47,25 +50,20 @@ app.post("/search", async (req, res) => {
   try {
     const query = req.body.query;
 
-    // 1. Получаем реальные данные из Google
     const googleData = await realGoogleSearch(query);
+    const facts = JSON.stringify(googleData.organic_results || []);
 
-    // 2. Берём первые результаты
-    const facts = JSON.stringify(googleData.organic_results?.slice(0, 5) || []);
-
-    // 3. Формируем ответ через Gemini
     const reply = await callGemini(
-      `Вот реальные данные из Google: ${facts}. Дай краткий и точный ответ.`,
+      `Вот реальные данные из Google: ${facts}. Дай точный и короткий ответ.`,
       query
     );
 
     res.json({ reply });
-  } catch (error) {
+  } catch {
     res.json({ reply: "Ошибка сервера." });
   }
 });
 
-// 4. Render требует указать порт
 app.listen(process.env.PORT || 3000, () => {
   console.log("Server started");
 });
