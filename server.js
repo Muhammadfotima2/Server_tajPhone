@@ -5,8 +5,8 @@ const app = express();
 app.use(express.json());
 
 // ВСТАВЬ СВОИ КЛЮЧИ
-const SERP_API_KEY = "YOUR_SERPAPI_KEY";
-const GEMINI_KEY   = "YOUR_GEMINI_KEY";
+const SERP_API_KEY = "6087667CEB3446B0888E718CA534A3E6";
+const GEMINI_KEY   = "AIzaSyBihmxHE3_FsIVNGSi5LWi3UOyGihwCgMs";
 
 // 1. Реальный Google Search через SerpAPI
 async function realGoogleSearch(query) {
