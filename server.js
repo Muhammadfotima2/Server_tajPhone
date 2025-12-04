@@ -7,10 +7,10 @@ app.use(express.json());
 // ТВОЙ КЛЮЧ ОТ VALUE SERP
 const VALUE_SERP_KEY = "6087667CEB3446B0888E718CA534A3E6";
 
-// ТВОЙ КЛЮЧ ГЕМИНИ
+// ТВОЙ КЛЮЧ ОТ GEMINI
 const GEMINI_KEY = "AIzaSyBihmxHE3_FsIVNGSi5LWi3UOyGihwCgMs";
 
-// 1. Реальный Google Search (Value SERP)
+// 1. Реальный Google Search (ValueSERP)
 async function realGoogleSearch(query) {
   const url =
     `https://api.valueserp.com/search?api_key=${VALUE_SERP_KEY}&q=${encodeURIComponent(query)}`;
@@ -20,7 +20,7 @@ async function realGoogleSearch(query) {
   return json;
 }
 
-// 2. Gemini ответ
+// 2. Вызов Gemini, который всегда формирует ответ
 async function callGemini(system, user) {
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${GEMINI_KEY}`;
@@ -41,29 +41,38 @@ async function callGemini(system, user) {
     body: JSON.stringify(body)
   });
 
-  const json = await r.json();
-  return json.candidates?.[0]?.content?.parts?.[0]?.text || "Нет ответа";
+  const response = await r.json();
+
+  return (
+    response.candidates?.[0]?.content?.parts?.[0]?.text ||
+    "Google дал пустой ответ, но Gemini не сгенерировал текст."
+  );
 }
 
-// 3. Основной API
+// 3. Основной API, который ВСЕГДА отдаёт данные
 app.post("/search", async (req, res) => {
   try {
     const query = req.body.query;
 
+    // Получаем реальные данные
     const googleData = await realGoogleSearch(query);
-    const facts = JSON.stringify(googleData.organic_results || []);
+
+    // Передаём ВЕСЬ JSON в Gemini чтобы он точно смог ответить
+    const facts = JSON.stringify(googleData);
 
     const reply = await callGemini(
-      `Вот реальные данные из Google: ${facts}. Дай точный и короткий ответ.`,
+      `Вот реальные данные из Google в JSON формате: ${facts}. 
+       На основе этих данных дай максимально точный, краткий, современный и реальный ответ без фантазий.`,
       query
     );
 
     res.json({ reply });
-  } catch {
-    res.json({ reply: "Ошибка сервера." });
+  } catch (error) {
+    res.json({ reply: "Ошибка сервера. Проверь запрос или API ключи." });
   }
 });
 
+// 4. Render запуск
 app.listen(process.env.PORT || 3000, () => {
   console.log("Server started");
 });
