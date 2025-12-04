@@ -4,13 +4,11 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
-// ТВОЙ КЛЮЧ ОТ VALUE SERP
+// Ключи
 const VALUE_SERP_KEY = "6087667CEB3446B0888E718CA534A3E6";
+const GEMINI_KEY     = "AIzaSyBihmxHE3_FsIVNGSi5LWi3UOyGihwCgMs";
 
-// ТВОЙ КЛЮЧ ОТ GEMINI
-const GEMINI_KEY = "AIzaSyBihmxHE3_FsIVNGSi5LWi3UOyGihwCgMs";
-
-// 1. Реальный Google Search (ValueSERP)
+// 1. Поиск через ValueSERP
 async function realGoogleSearch(query) {
   const url =
     `https://api.valueserp.com/search?api_key=${VALUE_SERP_KEY}&q=${encodeURIComponent(query)}`;
@@ -20,7 +18,7 @@ async function realGoogleSearch(query) {
   return json;
 }
 
-// 2. Вызов Gemini, который всегда формирует ответ
+// 2. Генерация ответа через Gemini
 async function callGemini(system, user) {
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${GEMINI_KEY}`;
@@ -42,37 +40,49 @@ async function callGemini(system, user) {
   });
 
   const response = await r.json();
-
   return (
     response.candidates?.[0]?.content?.parts?.[0]?.text ||
-    "Google дал пустой ответ, но Gemini не сгенерировал текст."
+    "По запросу нет точных данных."
   );
 }
 
-// 3. Основной API, который ВСЕГДА отдаёт данные
+// 3. Основной API
 app.post("/search", async (req, res) => {
   try {
     const query = req.body.query;
 
-    // Получаем реальные данные
+    // Получаем реальные данные Google
     const googleData = await realGoogleSearch(query);
 
-    // Передаём ВЕСЬ JSON в Gemini чтобы он точно смог ответить
-    const facts = JSON.stringify(googleData);
+    // Вытаскиваем только важные блоки (даже если пустые)
+    const facts = JSON.stringify({
+      top_stories: googleData.top_stories,
+      answer_box: googleData.answer_box,
+      knowledge_graph: googleData.knowledge_graph,
+      organic_results: googleData.organic_results
+    });
 
+    // Gemini формирует ответ
     const reply = await callGemini(
-      `Вот реальные данные из Google в JSON формате: ${facts}. 
-       На основе этих данных дай максимально точный, краткий, современный и реальный ответ без фантазий.`,
+      `
+      Вот реальные данные из Google Search (могут быть частично пустыми):
+      ${facts}
+
+      Если данных мало — используй то, что есть.
+      Если данных нет — скажи: "По запросу нет точных данных."
+      Дай максимально точный и короткий ответ.
+      `,
       query
     );
 
     res.json({ reply });
+
   } catch (error) {
-    res.json({ reply: "Ошибка сервера. Проверь запрос или API ключи." });
+    res.json({ reply: "Ошибка сервера. Проверь API ключи или запрос." });
   }
 });
 
-// 4. Render запуск
+// Render порт
 app.listen(process.env.PORT || 3000, () => {
   console.log("Server started");
 });
