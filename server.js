@@ -4,32 +4,28 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
-// Ключи
-const VALUE_SERP_KEY = "6087667CEB3446B0888E718CA534A3E6";
-const GEMINI_KEY     = "AIzaSyBihmxHE3_FsIVNGSi5LWi3UOyGihwCgMs";
+// ТВОЙ КЛЮЧ ГЕМИНИ
+const GEMINI_KEY = "AIzaSyBihmxHE3_FsIVNGSi5LWi3UOyGihwCgMs";
 
-// 1. Поиск через ValueSERP
-async function realGoogleSearch(query) {
-  const url =
-    `https://api.valueserp.com/search?api_key=${VALUE_SERP_KEY}&q=${encodeURIComponent(query)}`;
-
-  const r = await fetch(url);
-  const json = await r.json();
-  return json;
-}
-
-// 2. Генерация ответа через Gemini
-async function callGemini(system, user) {
+// 1. Gemini с включённым Google Search
+async function callGeminiWithSearch(question) {
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${GEMINI_KEY}`;
 
   const body = {
-    systemInstruction: system,
+    systemInstruction: `
+      Ты — эксперт по смартфонам.
+      Используй интернет-поиск GoogleSearch для получения реальных данных.
+      Дай краткий и точный ответ.
+    `,
     contents: [
       {
         role: "user",
-        parts: [{ text: user }]
+        parts: [{ text: question }]
       }
+    ],
+    tools: [
+      { googleSearch: {} }   // ВОТ ЭТО ВАЖНО — интернет ВКЛЮЧЁН
     ]
   };
 
@@ -39,50 +35,24 @@ async function callGemini(system, user) {
     body: JSON.stringify(body)
   });
 
-  const response = await r.json();
+  const json = await r.json();
+
   return (
-    response.candidates?.[0]?.content?.parts?.[0]?.text ||
-    "По запросу нет точных данных."
+    json.candidates?.[0]?.content?.parts?.[0]?.text ||
+    "Google дал пустой ответ."
   );
 }
 
-// 3. Основной API
+// API
 app.post("/search", async (req, res) => {
-  try {
-    const query = req.body.query;
+  const query = req.body.query;
 
-    // Получаем реальные данные Google
-    const googleData = await realGoogleSearch(query);
+  const reply = await callGeminiWithSearch(query);
 
-    // Вытаскиваем только важные блоки (даже если пустые)
-    const facts = JSON.stringify({
-      top_stories: googleData.top_stories,
-      answer_box: googleData.answer_box,
-      knowledge_graph: googleData.knowledge_graph,
-      organic_results: googleData.organic_results
-    });
-
-    // Gemini формирует ответ
-    const reply = await callGemini(
-      `
-      Вот реальные данные из Google Search (могут быть частично пустыми):
-      ${facts}
-
-      Если данных мало — используй то, что есть.
-      Если данных нет — скажи: "По запросу нет точных данных."
-      Дай максимально точный и короткий ответ.
-      `,
-      query
-    );
-
-    res.json({ reply });
-
-  } catch (error) {
-    res.json({ reply: "Ошибка сервера. Проверь API ключи или запрос." });
-  }
+  res.json({ reply });
 });
 
-// Render порт
+// Render
 app.listen(process.env.PORT || 3000, () => {
   console.log("Server started");
 });
